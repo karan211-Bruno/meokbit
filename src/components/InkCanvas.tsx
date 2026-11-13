@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { InkPoint, InkStroke, PaperTemplateId, PenKind } from '../types';
+import { InkPoint, InkStroke, PageTimeMark, PaperTemplateId, PenKind } from '../types';
 import { drawPaperTemplate } from '../lib/templates';
 
 export interface LassoSelection {
@@ -14,6 +14,9 @@ interface InkCanvasProps {
   backgroundImage?: string;
   textLayer: string;
   strokes: InkStroke[];
+  timeMarks?: PageTimeMark[];
+  showSyncMarkers?: boolean;
+  clickToSpeak?: boolean;
   pen: PenKind;
   shade: string;
   baseWidth: number;
@@ -21,6 +24,8 @@ interface InkCanvasProps {
   activeRecordingId?: string;
   getRecordingOffsetMs?: () => number;
   highlightAudioTimeMs?: number | null;
+  undoSignal?: number;
+  redoSignal?: number;
   onChangeStrokes: (strokes: InkStroke[]) => void;
   onChangeTextLayer: (text: string) => void;
   onSeekAudio?: (recordingId: string, offsetMs: number) => void;
@@ -142,6 +147,9 @@ export const InkCanvas: React.FC<InkCanvasProps> = ({
   backgroundImage,
   textLayer,
   strokes,
+  timeMarks = [],
+  showSyncMarkers = true,
+  clickToSpeak = true,
   pen,
   shade,
   baseWidth,
@@ -149,6 +157,8 @@ export const InkCanvas: React.FC<InkCanvasProps> = ({
   activeRecordingId,
   getRecordingOffsetMs,
   highlightAudioTimeMs,
+  undoSignal = 0,
+  redoSignal = 0,
   onChangeStrokes,
   onChangeTextLayer,
   onSeekAudio,
@@ -224,6 +234,27 @@ export const InkCanvas: React.FC<InkCanvasProps> = ({
           stroke.audioOffsetMs !== undefined &&
           Math.abs(stroke.audioOffsetMs - highlightAudioTimeMs) < 1800;
         renderStroke(ctx, stroke, Boolean(isSyncedNow));
+
+        // Draw subtle dashed audio-sync marker beneath synced handwriting strokes
+        if (showSyncMarkers && stroke.audioOffsetMs !== undefined && stroke.points.length >= 2) {
+          let minX = CANVAS_W;
+          let maxX = 0;
+          let maxY = 0;
+          for (const p of stroke.points) {
+            if (p.x < minX) minX = p.x;
+            if (p.x > maxX) maxX = p.x;
+            if (p.y > maxY) maxY = p.y;
+          }
+          ctx.save();
+          ctx.strokeStyle = isSyncedNow ? '#111111' : '#7b848c';
+          ctx.lineWidth = isSyncedNow ? 2.4 : 1.4;
+          ctx.setLineDash([4, 3]);
+          ctx.beginPath();
+          ctx.moveTo(minX, Math.min(CANVAS_H - 6, maxY + 8));
+          ctx.lineTo(Math.max(minX + 18, maxX), Math.min(CANVAS_H - 6, maxY + 8));
+          ctx.stroke();
+          ctx.restore();
+        }
       }
 
       if (extraStroke) {
@@ -258,8 +289,25 @@ export const InkCanvas: React.FC<InkCanvasProps> = ({
         ctx.restore();
       }
     },
-    [strokes, lassoPoly, lassoSelection, highlightAudioTimeMs]
+    [strokes, lassoPoly, lassoSelection, highlightAudioTimeMs, showSyncMarkers]
   );
+
+  const prevUndoSigRef = useRef(undoSignal);
+  const prevRedoSigRef = useRef(redoSignal);
+  useEffect(() => {
+    if (undoSignal !== prevUndoSigRef.current) {
+      prevUndoSigRef.current = undoSignal;
+      handleUndo();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [undoSignal]);
+  useEffect(() => {
+    if (redoSignal !== prevRedoSigRef.current) {
+      prevRedoSigRef.current = redoSignal;
+      handleRedo();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [redoSignal]);
 
   useEffect(() => {
     drawBackgroundLayer();
@@ -311,18 +359,19 @@ export const InkCanvas: React.FC<InkCanvasProps> = ({
     const rect = canvas.getBoundingClientRect();
     const pt = pointToCanvas(e.clientX, e.clientY, rect, { x: 0, y: 0 }, 1);
 
-    // Check if tapping a stroke synced to audio (Alt+Click or quick tap with audio metadata)
-    if (e.altKey && onSeekAudio) {
-      const hit = strokes.find(
-        (s) =>
-          s.audioRecordingId &&
-          s.audioOffsetMs !== undefined &&
-          s.points.some((p) => Math.hypot(p.x - pt.x, p.y - pt.y) < 16)
-      );
-      if (hit && hit.audioRecordingId && hit.audioOffsetMs !== undefined) {
-        onSeekAudio(hit.audioRecordingId, hit.audioOffsetMs);
-        return;
-      }
+    // Check if tapping a stroke synced to audio (Click-to-Speak or Alt+Click)
+    const tapHitStroke =
+      (e.altKey || (clickToSpeak && !activeRecordingId && toolMode === 'pen')) && onSeekAudio
+        ? strokes.find(
+            (s) =>
+              s.audioRecordingId &&
+              s.audioOffsetMs !== undefined &&
+              s.points.some((p) => Math.hypot(p.x - pt.x, p.y - pt.y) < 18)
+          )
+        : undefined;
+    if (tapHitStroke && tapHitStroke.audioRecordingId && tapHitStroke.audioOffsetMs !== undefined && onSeekAudio) {
+      onSeekAudio(tapHitStroke.audioRecordingId, tapHitStroke.audioOffsetMs);
+      return;
     }
 
     canvas.setPointerCapture(e.pointerId);
@@ -590,6 +639,29 @@ export const InkCanvas: React.FC<InkCanvasProps> = ({
             }
             readOnly={toolMode !== 'text'}
           />
+          {showSyncMarkers &&
+            timeMarks.map((tm) => (
+              <button
+                key={tm.id}
+                type="button"
+                data-testid={`time-mark-${tm.id}`}
+                className={`canvas-time-mark ${
+                  highlightAudioTimeMs !== null &&
+                  highlightAudioTimeMs !== undefined &&
+                  Math.abs(tm.offsetMs - highlightAudioTimeMs) < 1800
+                    ? 'is-playing'
+                    : ''
+                }`}
+                style={{
+                  left: `${(tm.x / CANVAS_W) * 100}%`,
+                  top: `${(tm.y / CANVAS_H) * 100}%`,
+                }}
+                title={`Click-to-Speak: ${tm.label} 부터 재생`}
+                onClick={() => onSeekAudio?.(tm.recordingId, tm.offsetMs)}
+              >
+                ▶ {tm.label}
+              </button>
+            ))}
         </div>
       </div>
 

@@ -1,42 +1,42 @@
-# 먹빛 (Meokbit) — 300PPI E-Ink 스타일 AI 잉크 노트 스튜디오
+# 먹빛 (Meokbit) v2.0.0 — AINOTE 2 스타일 E-Ink AI 회의 · 필기 · 전사 스튜디오
 
-**먹빛(Meokbit)**은 종이 질감의 무채색 E-Ink 노트 경험을 바탕으로, **필압·속도 기반 만년필 필기**, **음성 녹음·필기 타임라인 동기화**, **16개 언어 전사·11개 언어 번역**, **올가미 AI 검색/마크다운/업무 추출**, **AI Aid 회의 요약·문서 작성**, **마인드맵**, **Google 캘린더(.ics)**를 하나로 결합한 크로스 플랫폼 노트 앱(Android / iPadOS / PWA)입니다.
+**먹빛(Meokbit) v2.0.0**은 종이 질감 E-Ink 홈 런처와 **실시간 분할 화면 음성 전사**, **화자 식별·일괄 이름 변경**, **타임마크 + Click-to-Speak**, **1-탭 AI Meeting Minutes**, **오디오 분리 내보내기 (`Files > Audio`)**를 Android · iPadOS · 웹(PWA) 환경에서 구현한 독립 오리지널 AI 노트 스튜디오입니다.
 
 > 본 프로젝트는 공개된 디지털 노트 워크플로우를 참고하여 독립적으로 설계·구현한 오리지널 소프트웨어이며, 특정 제조사와 무관합니다.
 
 ---
 
-## 주요 기능
+## v2.0.0 주요 기능
 
-1. **저지연 캘리그래피 펜 엔진 (`src/components/InkCanvas.tsx`)**
-   - 5종 브러시: **만년필(필압 + 필기 속도 + 45° 닙 각도)**, 볼펜, 연필, 붓펜, 형광펜
-   - `PointerEvent.getCoalescedEvents()` 고주사율 입력 + 스타일러스 지우개 버튼(`buttons === 32`) + 손바닥 거부 + 2손가락 핀치 줌 + 60단계 Undo/Redo
-   - **12종 전문 속지 템플릿** (`src/lib/templates.ts`): 줄노트, 회의록, 코넬 노트, 5mm 모눈, 점 격자, **200자 원고지**, 주간 플래너, 할 일 체크, 인터뷰, 오선지, 마인드맵, 백지
+1. **2열 E-Ink 홈 런처 (`src/components/HomeLauncher.tsx`)**
+   - 폴더 필터(`All`, `Default`, `Meetings`, `Personal Goals`, `Projects`), 빠른 템플릿, PDF/TXT 불러오기, 하단 독(`Notes`, `Schedule`, `Reading`, `MindMap`, `Files > Audio`, `Settings`)
 
-2. **음성 녹음 ↔ 필기 실시간 동기화 & 다국어 전사/번역 (`src/lib/voiceRecorder.ts`)**
-   - 녹음 중에 쓴 모든 필기 획에 `audioRecordingId`와 `audioOffsetMs`를 자동 기록
-   - 나중에 해당 필기를 `Alt/Option+클릭`하거나 타임라인 문장을 누르면 **녹음했던 그 순간의 음성부터 즉시 재생**
-   - 한국어·영어·일본어·중국어 등 **16개 언어 음성 전사** 및 **11개 언어 번역**
+2. **상단 도킹 분할 전사·오디오 플레이어 (`src/components/TranscriptionPopup.tsx`)**
+   - `•••••` 핸들 드래그로 높이 조절 및 상단 축소/숨김 (`⌃ 숨김` 후에도 백그라운드 녹음 유지, `🎙` 필로 복귀)
+   - 실시간 웨이브폼, `🏷 Tag` 타임마크 기록, 배속(`1x~2x`), 스크러버 위 클릭 가능한 태그 점, **재생 구간 반전 하이라이트**
+   - **화자 구분(`👥 화자`) & 화자 이름 변경 모달**: 화자 배지 탭 → **`Only modify here`** (현재 구간만) vs **`The modification applies to the whole article`** (전체 문서 일괄 변경)
 
-3. **올가미(Lasso) AI & AI Aid (`src/components/AiAidSheet.tsx`)**
-   - 손글씨를 올가미로 감싸 **AI 검색/질문**, **마크다운 변환**, **할 일(To-Do) 등록**, **선택 삭제** 즉시 실행
-   - **회의 요약(AI Aid)**: 노트 + 전사 텍스트를 요약하고 체크리스트/일정 자동 추출
-   - **AI 문서 작성**: 기획 보고서, 공식 회의록, 업무 이메일, 학습 노트 초안 생성
-   - **상단 AI 버튼 시뮬레이터**: 자연어 일정(`"내일 오후 3시 디자인 리뷰 일정 추가해줘"`)을 자동 파싱해 캘린더와 할 일에 등록
-   - API 키 없이 바로 동작하는 **오프라인 로컬 엔진** + 사용자 키 기반 **OpenAI(`gpt-5`) / Google Gemini / 커스텀 엔드포인트** 지원
+3. **16개어 전사 & 10개어 상호 번역 모드 (`src/components/LanguageModeModal.tsx`)**
+   - 한국어·영어·일본어·중국어 등 16개어(`Offline` pack 배지 포함) 선택 + 자주 쓰는 번역 쌍(`+ Add Mode`) 영구 저장 및 `원문 | 번역 | 원문+번역` 전환
 
-4. **독서·화면·생산성 워크플로우**
-   - **우측 엣지 퀵 메모** & **하단 퀵바 AI**: 어느 화면에서든 즉시 메모/질문
-   - **E-Ink 프론트라이트 색온도 조절** & **두 손가락 두 번 탭 잔상 전체 새로고침**
-   - **PDF·TXT·MD 불러오기** (`pdfjs-dist` 기반 페이지 이미지 변환 후 PDF 위 직접 필기)
-   - **마인드맵 스튜디오**(AI 가지 자동 생성 + 노트 삽입) 및 **Google 캘린더(.ics)** 양방향 연동
+4. **Click-to-Speak 타임마크 & 필기-음성 동기화 (`src/components/InkCanvas.tsx`)**
+   - `⋮` 메뉴의 **Show text-audio sync markers** / **Click-to-Speak** 옵션 지원
+   - 필기 밑의 점선 동기화 마커, 페이지 여백 `00:01:23` 타임마크 배지, 또는 녹음 중 작성한 손글씨 획을 탭하면 **즉시 해당 음성 시점부터 오디오 재생**
+   - 만년필(필압+속도)·볼펜·연필·붓펜·형광펜, `↶`/`↷` Undo/Redo, `⬚` 올가미 AI 검색/마크다운/To-Do
+
+5. **1-탭 `✦ AI Aide` → 전체 화면 `Meeting Minutes` (`src/components/MeetingMinutesView.tsx`)**
+   - `Date`, `Attendees` (변경된 화자 이름 자동 반영), `Agenda`, `Key Discussion Points`, `Quote`, `Items to be Confirmed`, `Action Items` 구조화 생성 + `T` 직접 편집 + **`Insert into note`** (`Completed` 알림) + 실행과제 To-Do 일괄 등록
+
+6. **`⤴ Share` 오디오 분리 내보내기 (`src/components/ShareExportModal.tsx`) & `⟲ Retranscribe` (`src/components/RetranscribeModal.tsx`)**
+   - `Web (MD)`, `PDF`, `Text (.txt)` 외에도 **Recording Files**(`WAV` / `MP3` / `WebM`) 별도 오디오 추출 및 `Files > Audio` 보관함 저장
+   - `Retranscribe`: `Complete the transcription` / `All rewind`, `Multiplayer mode`, **`Tips` 덮어쓰기 확인 대화상자** → `"Voice to text conversion successful"`
 
 ---
 
 ## 설치파일 및 실행 방법
 
 - 자세한 설치 안내는 [`설치-및-사용-안내.md`](설치-및-사용-안내.md)를 참고하세요.
-- **GitHub Releases**: `meokbit-1.0.0-android.apk`, `meokbit-1.0.0-ios-unsigned.ipa`, `meokbit-1.0.0-source.zip`
+- **GitHub Releases (v2.0.0)**: `meokbit-2.0.0-android.apk`, `meokbit-2.0.0-ios-unsigned.ipa`, `meokbit-2.0.0-source.zip`
 
 ## 로컬 빌드
 

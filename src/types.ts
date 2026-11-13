@@ -49,6 +49,7 @@ export interface AudioMemo {
   language: string;
   targetLanguage: string;
   segments: TranscriptSegment[];
+  tags?: RecordingTag[];
 }
 
 export interface NotePage {
@@ -58,12 +59,14 @@ export interface NotePage {
   backgroundImage?: string; // for imported PDF/document pages
   textLayer: string;
   strokes: InkStroke[];
+  timeMarks?: PageTimeMark[];
 }
 
 export interface NoteBook {
   id: string;
   title: string;
   category: 'meeting' | 'study' | 'document' | 'quick';
+  folder?: NoteFolder;
   pages: NotePage[];
   currentPage: number;
   recordings: AudioMemo[];
@@ -103,6 +106,46 @@ export interface MindMapDoc {
   updatedAt: number;
 }
 
+export type NoteFolder = 'All' | 'Default' | 'Meetings' | 'Personal Goals' | 'Projects';
+
+export interface RecordingTag {
+  id: string;
+  offsetMs: number;
+  label: string;
+  pageIndex: number;
+}
+
+export interface PageTimeMark {
+  id: string;
+  recordingId: string;
+  offsetMs: number;
+  x: number;
+  y: number;
+  label: string;
+}
+
+export interface TranslationPair {
+  id: string;
+  sourceCode: string;
+  sourceLabel: string;
+  targetCode: string;
+  targetLabel: string;
+}
+
+export interface ExportedAudioFile {
+  id: string;
+  name: string;
+  format: 'wav' | 'mp3' | 'webm';
+  mimeType: string;
+  durationMs: number;
+  sizeBytes: number;
+  dataUrl: string;
+  createdAt: number;
+  sourceNoteTitle: string;
+}
+
+export type TranslationDisplayMode = 'original' | 'translation' | 'both';
+
 export interface AiSettings {
   provider: 'local' | 'openai' | 'gemini' | 'custom';
   apiKey: string;
@@ -111,4 +154,9 @@ export interface AiSettings {
   readingLight: number; // 0..100 (warm reading lamp overlay)
   speechLang: string;
   translateLang: string;
+  translationMode: TranslationDisplayMode;
+  savedTranslationPairs: TranslationPair[];
+  showSyncMarkers: boolean;
+  clickToSpeak: boolean;
+  splitPaneHeight: number;
 }

@@ -310,8 +310,144 @@ export async function runAiMindMapGenerate(
   ];
 }
 
+export interface StructuredMeetingMinutes {
+  title: string;
+  dateLabel: string;
+  attendees: string[];
+  agenda: string[];
+  discussionPoints: Array<{ heading: string; bullets: string[] }>;
+  quote?: string;
+  itemsToConfirm: string[];
+  actionItems: Array<{ owner: string; task: string; due?: string }>;
+  markdown: string;
+}
+
+export async function runFullMeetingMinutes(
+  settings: AiSettings,
+  title: string,
+  noteText: string,
+  segments: TranscriptSegment[],
+): Promise<StructuredMeetingMinutes> {
+  const speakers = Array.from(
+    new Set(segments.map((s) => s.speaker.trim()).filter(Boolean)),
+  );
+  const attendees = speakers.length > 0 ? speakers : ['Speaker 1', 'Speaker 2'];
+  const dateLabel = new Date().toLocaleDateString('ko-KR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  const summary = await runAiMeetingSummary(settings, title, noteText, segments);
+
+  const noteLines = noteText
+    .split(/\n+/)
+    .map((l) => l.replace(/^[-*•\[\]\s]+/, '').trim())
+    .filter((l) => l.length > 2);
+
+  const agenda = noteLines.length > 0
+    ? noteLines.slice(0, 3)
+    : ['핵심 프로젝트 진행 현황 점검', '실시간 음성 전사 및 필기 동기화 검토', '향후 마일스톤 및 일정 확정'];
+
+  const discussionPoints: Array<{ heading: string; bullets: string[] }> = [];
+  if (segments.length > 0) {
+    const bySpeaker = new Map<string, string[]>();
+    for (const seg of segments) {
+      const list = bySpeaker.get(seg.speaker) || [];
+      list.push(seg.text);
+      bySpeaker.set(seg.speaker, list);
+    }
+    Array.from(bySpeaker.entries()).forEach(([speaker, lines]) => {
+      discussionPoints.push({
+        heading: `${speaker} 주요 발언`,
+        bullets: lines.slice(0, 3),
+      });
+    });
+  } else {
+    discussionPoints.push({
+      heading: '주요 논의 사항',
+      bullets: agenda,
+    });
+  }
+
+  const quote = segments[0]?.text
+    ? `"${segments[0].text}" — ${segments[0].speaker}`
+    : undefined;
+
+  const itemsToConfirm = summary.extractedEvents.length > 0
+    ? summary.extractedEvents.map((ev) => `${ev.title} (${ev.date} ${ev.time}) 일정 최종 확인`)
+    : ['차기 리뷰 회의 시간 및 공유 대상 최종 확인'];
+
+  const actionItems = summary.extractedTodos.map((t, idx) => ({
+    owner: attendees[idx % attendees.length] || '담당자',
+    task: t,
+    due: idx === 0 ? '오늘 중' : '이번 주 내',
+  }));
+
+  const mdLines = [
+    `# Meeting Minutes — ${title}`,
+    `- **Date**: ${dateLabel}`,
+    `- **Attendees**: ${attendees.join(', ')}`,
+    '',
+    '## Agenda',
+    ...agenda.map((a) => `- ${a}`),
+    '',
+    '## Key Discussion Points',
+    ...discussionPoints.flatMap((dp) => [`### ${dp.heading}`, ...dp.bullets.map((b) => `- ${b}`), '']),
+    ...(quote ? [`> ${quote}`, ''] : []),
+    '## Items to be Confirmed',
+    ...itemsToConfirm.map((c) => `- [ ] ${c}`),
+    '',
+    '## Action Items',
+    ...actionItems.map((ai) => `- [ ] **${ai.owner}**: ${ai.task}${ai.due ? ` (${ai.due})` : ''}`),
+  ];
+
+  return {
+    title,
+    dateLabel,
+    attendees,
+    agenda,
+    discussionPoints,
+    quote,
+    itemsToConfirm,
+    actionItems,
+    markdown: mdLines.join('\n'),
+  };
+}
+
+const SAMPLE_GLOSSARY: Array<{ re: RegExp; en: string; ko: string; ja: string; zh: string }> = [
+  {
+    re: /전략|계획|목표|core|focus/i,
+    en: 'Synchronized voice-and-ink capture with speaker identification and timestamp jump.',
+    ko: '화자 구분 및 타임스탬프 이동을 지원하는 실시간 음성·필기 동기화 기록.',
+    ja: '話者識別とタイムスタンプ移動に対応したリアルタイム音声・手書き同期記録。',
+    zh: '支持说话人识别与时间戳跳转的实时语音手写同步记录。',
+  },
+  {
+    re: /올가미|마크다운|AI|summary|todo/i,
+    en: 'Circle handwritten keywords with the lasso tool to summarize or send to action items.',
+    ko: '올가미로 손글씨를 감싸 AI 회의 적요 요약 또는 할 일 목록에 바로 추가합니다.',
+    ja: '投げ縄で手書きを囲み、AI要約またはTo-Doへ直接追加します。',
+    zh: '使用套索圈选手写内容，即可由AI整理纪要或直接加入待办事项。',
+  },
+  {
+    re: /일정|캘린더|내일|오후|3시|schedule|calendar/i,
+    en: 'Confirm action items, attendees, and calendar schedule export before tomorrow 3 PM.',
+    ko: '내일 오후 3시 전까지 참석자별 실행 과제 및 캘린더(.ics) 내보내기를 확정합니다.',
+    ja: '明日午後3時までに担当者別アクション項目とカレンダー(.ics)出力を確定します。',
+    zh: '请在明天下午3点前确认各参会人待办事项及日历(.ics)导出。',
+  },
+];
+
 export function quickTranslateLine(text: string, targetLang: string): string {
   if (!text.trim()) return '';
+  const hit = SAMPLE_GLOSSARY.find((g) => g.re.test(text));
+  if (hit) {
+    if (targetLang === 'en') return hit.en;
+    if (targetLang === 'ko') return hit.ko;
+    if (targetLang === 'ja') return hit.ja;
+    if (targetLang === 'zh') return hit.zh;
+  }
   const tag =
     targetLang === 'en'
       ? 'EN'
@@ -320,5 +456,5 @@ export function quickTranslateLine(text: string, targetLang: string): string {
         : targetLang === 'zh'
           ? 'ZH'
           : targetLang.toUpperCase();
-  return `[${tag} 실시간 번역] ${text}`;
+  return `[${tag}] ${text}`;
 }

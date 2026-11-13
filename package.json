@@ -1,7 +1,7 @@
 {
   "name": "meokbit",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
   "description": "먹빛 (Meokbit) — E-Ink 감성 AI 필기·동시녹음·전사·회의요약 전자노트 (Android · iPadOS · PWA)",
   "scripts": {
